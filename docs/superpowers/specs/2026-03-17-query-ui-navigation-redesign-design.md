@@ -47,56 +47,114 @@
 ### 4.1 保留的业务状态
 
 - `queryState`
-  - 干员搜索、筛选、可见结果、当前选中干员
+  - 干员搜索条件
+  - 筛选条件
 - `formationsState`
-  - 编队列表、当前编队、当前选中槽位、备注、策略
+  - 编队数据本身
+  - 每个编队的名称、备注、策略、干员槽位、转职盟约等持久化内容
 
-本次重构不保留全局 `detailTarget` 作为独立真相源。
+本次重构中：
 
-详情的唯一来源按上下文拆开：
+- `queryState` 不再持有“当前选中干员”
+- `formationsState` 不再持有“当前选中编队”或“当前选中槽位”
+- 不保留全局 `detailTarget`
 
-- PC 干员页右栏详情由 `queryState.selectedOperatorKey` 驱动
-- PC 编队页右栏详情由 `formationsState.selectedEntryId` 驱动
-- 移动端详情屏由对应主模式自己的导航状态携带目标 key 驱动
-- 盟约说明由 `popoverState` 驱动
-- 策略信息由编队详情区自身驱动
+运行时的“当前看谁、选中谁、正在显示哪个详情”，统一由新的 `viewState` 持有。
 
-### 4.2 新增的导航状态
+换句话说：
 
-新增 `navigationState`，作为本次重构的核心。
+- 业务状态负责“有什么数据”
+- 视图状态负责“现在正在看哪条数据”
+- 可见结果属于渲染时派生数据，不持久存入业务状态
+
+### 4.2 新增的视图状态
+
+新增 `viewState`，作为本次重构的核心。
 
 它至少需要表达：
 
 - `mode`
   - `operators`
   - `formations`
-- `viewport`
-  - `desktop`
-  - `mobile`
-- `operatorsNav`
-  - 干员主模式自己的移动端导航状态
-  - 至少包含：
-    - `screen`
-      - `operatorList`
-      - `operatorDetail`
+- `operatorsView`
+  - `desktopFrame`
     - `selectedOperatorKey`
-    - `historyStack`
-- `formationsNav`
-  - 编队主模式自己的移动端导航状态
-  - 至少包含：
-    - `screen`
-      - `formationList`
-      - `formationDetail`
+    - `resultsScrollTop`
+  - `mobileStack`
+    - `{ screen: 'operatorList', scrollTop }`
+    - `{ screen: 'operatorDetail', operatorKey, scrollTop }`
+- `formationsView`
+  - `desktopFrame`
     - `selectedFormationId`
     - `selectedEntryId`
-    - `strategyPickerOpen`
-    - `historyStack`
+    - `listScrollTop`
+    - `detailScrollTop`
+  - `mobileStack`
+    - `{ screen: 'formationList', scrollTop }`
+    - `{ screen: 'formationDetail', formationId, scrollTop, overlay: null | 'strategyPicker' }`
+    - `{ screen: 'formationOperatorDetail', formationId, entryId, scrollTop }`
 
 设计约束：
 
-- 两个主模式各自维护自己的移动端栈和当前屏
+- `desktop/mobile` 不写入 `viewState`
+  - 由媒体查询或窗口宽度实时推导
+- 业务状态里不再保存运行时选中对象
+- 桌面端和移动端各自拥有自洽的视图工作区快照
+  - 桌面端看谁，由 `desktopFrame` 决定
+  - 移动端看谁，由 `mobileStack` 栈顶决定
+  - 这两套快照允许不同步，并且切换视口时各自恢复上次状态
 - 从一个主模式切到另一个主模式时，不销毁对方已有导航上下文
-- 用户切回原主模式时，应回到该主模式切换前所在的屏和选中目标
+- 用户切回原主模式时，应回到该主模式此前保存的视图快照
+- `mobileStack` 是真正的 push/pop 栈
+  - 进入子屏时 `push`
+  - 返回时 `pop`
+  - 当前屏永远取栈顶
+- 根栈不变量：
+  - `operatorsView.mobileStack` 初始且最少始终保留一个 `operatorList`
+  - `formationsView.mobileStack` 初始且最少始终保留一个 `formationList`
+  - 根栈不允许被 pop 掉
+- 每个工作区内部只能有一份选中对象定义
+  - 桌面端不再额外参考移动端栈帧中的对象
+  - 移动端不再额外参考桌面端 frame 中的对象
+- 移动端每一层详情栈帧必须自描述
+  - `formationOperatorDetail` 自己持有 `formationId + entryId`
+  - 不允许依赖父帧偷偷提供详情目标
+  - 从 `formationOperatorDetail` 返回 `formationDetail` 时，不保留槽位高亮
+
+规范化规则：
+
+- 干员模式
+  - 桌面端 `desktopFrame.selectedOperatorKey` 无效时：
+    - 还有可见干员则自动切到第一项
+    - 否则置空并显示空状态
+  - 移动端栈顶如果是 `operatorDetail` 且 `operatorKey` 无效时：
+    - 还有可见干员则把栈顶替换成第一项对应的 `operatorDetail`
+    - 否则降级回 `operatorList`
+- 编队模式
+  - 桌面端 `desktopFrame.selectedFormationId` 无效时：
+    - 还有剩余编队则切到第一项
+    - 否则置空
+  - 桌面端 `desktopFrame.selectedEntryId` 允许长期为空
+    - 为空时右栏显示“选择一个槽位查看干员详情”
+    - 不自动补第一项
+  - 桌面端 `desktopFrame.selectedEntryId` 非空但失效时：
+    - 直接置空
+    - 右栏回到“选择一个槽位查看干员详情”
+  - 移动端栈顶如果是 `formationDetail` 且 `formationId` 无效时：
+    - 还有剩余编队则降级回 `formationList`
+    - 否则降级回 `formationList`
+  - 移动端栈顶如果是 `formationOperatorDetail`：
+    - `formationId` 无效时，降级回 `formationList`
+    - `entryId` 无效但 `formationId` 仍有效时，降级回对应的 `formationDetail`
+- 整栈清洗规则：
+  - 任何对象删除或失效后，不只修栈顶
+  - 必须从栈底到栈顶遍历整条 `mobileStack`
+  - 按固定规则清洗：
+    - `operatorDetail` 失效：替换成第一项对应的 `operatorDetail`；若无结果则替换为根 `operatorList`
+    - `formationDetail` 失效：替换为根 `formationList`
+    - `formationOperatorDetail` 的 `formationId` 失效：替换为根 `formationList`
+    - `formationOperatorDetail` 的 `entryId` 失效：替换为同编队的 `formationDetail`
+  - 清洗后若栈为空，补回根栈帧
 
 ### 4.3 新增的轻量弹层状态
 
@@ -106,16 +164,31 @@
 
 - 当前是否打开
 - 当前打开的是哪个盟约
-- 当前上下文
 - 纯数据定位信息，例如 `anchorRect`
-- 属于哪个上下文页面
+- `hostKey`
+  - 触发该气泡的宿主视图和触发源标识
+  - 例如：
+    - `operators:desktop:detail:bond:lateranoShip`
+    - `formations:desktop:summary:formation-1:bond:lateranoShip`
+    - `formations:mobile:detail:formation-1:bond:lateranoShip`
 
 同一时间只允许一个盟约气泡打开。
 
 设计约束：
 
 - `popoverState` 不保存 DOM 节点引用
-- 只要触发项被卸载、当前页面切换、当前屏切换、视口变化或触发上下文失效，气泡必须立即关闭
+- `hostKey` 用来区分“同一个盟约在不同位置被点击”这种情况
+  - 点击相同 `hostKey` 视为切换开关
+  - 点击不同 `hostKey` 视为关闭旧气泡并在新位置打开
+- 盟约气泡的关闭由统一的页面控制器负责
+  - 不允许把 `closePopover()` 逻辑散落到各个渲染模块里
+- 各宿主视图只负责发出统一的“宿主已失效”事件
+  - 例如重渲染、卸载、切屏前通知控制器
+  - 真正的关闭动作仍由统一控制器完成
+- 同一次交互里如果同时发生“打开气泡”和“宿主失效/打开 overlay/切屏”，关闭优先
+- 只要宿主视图发生切换、重渲染、返回、视口变化或触发项被卸载，气泡必须立即关闭
+- 任意窗口滚动、容器滚动或普通 resize 发生时，当前气泡也必须立即关闭，不做位置重算
+- 打开任何局部覆盖层前，必须先关闭当前盟约气泡
 
 ## 5. 页面结构
 
@@ -140,10 +213,8 @@
 空状态规则：
 
 - 首次进入且没有可见干员时，右栏显示“没有符合条件的干员”
-- 首次进入且存在可见干员时，自动选中当前可见列表第一项
-- 如果筛选后当前选中干员已不在可见结果中：
-  - 还有结果时，自动切到第一项
-  - 没有结果时，右栏显示空状态提示
+- 首次进入且存在可见干员时，`operatorsView.desktopFrame.selectedOperatorKey` 自动指向第一项
+- 如果筛选后当前选中干员已不在可见结果中，按 `operatorsView` 的规范化规则处理
 
 ### 编队列表页
 
@@ -170,7 +241,7 @@
 
 - 没有当前编队时，中栏显示“先新建编队”，右栏显示空状态
 - 当前编队存在但没有选中槽位时，右栏显示“选择一个槽位查看干员详情”
-- 当前槽位为空或槽位对应干员无效时，右栏显示空状态，不自动跳到其他槽位
+- 当前槽位为空或槽位对应干员无效时，按 `formationsView` 的规范化规则处理
 
 ## 5.2 移动端
 
@@ -184,7 +255,8 @@
 规则：
 
 - 列表页显示搜索、筛选和干员卡片
-- 点击干员进入干员详情页
+- 点击干员时：
+  - 直接向 `operatorsView.mobileStack` `push` 一个带该干员 `operatorKey` 的 `operatorDetail`
 - 干员详情中的盟约点击后在附近弹出盟约气泡
 - 点击气泡外区域关闭气泡
 - 盟约不再成为单独移动端页面
@@ -198,9 +270,23 @@
 规则：
 
 - 编队列表页每个卡片右上角有删除按钮
-- 点击卡片主体进入编队详情页
+- 点击卡片主体进入编队详情页时：
+  - 直接向 `formationsView.mobileStack` `push` 一个带该编队 `formationId` 的 `formationDetail`
+- 删除规则：
+  - 删除后留在 `编队列表页`
+  - 如果删除的不是当前选中编队，只刷新列表
+  - 如果删除的是当前选中编队：
+    - 桌面端：
+      - 还有其他编队时，`desktopFrame.selectedFormationId` 切到第一项，`desktopFrame.selectedEntryId` 置空
+      - 没有剩余编队时，两个字段都置空
+    - 移动端：
+      - 清洗整条 `mobileStack`
+      - 任何依赖被删编队的帧都删除
+      - 清洗后统一回到 `formationList`
 - 编队详情页中：
   - 只有点击干员格子才进入干员详情页
+    - 再向 `formationsView.mobileStack` `push` 一个带当前 `formationId` 和目标 `entryId` 的 `formationOperatorDetail`
+    - 返回 `formationDetail` 后不保留刚才的槽位高亮
   - 策略在选定后常驻展示其信息
   - 再次点击策略区域时，在当前 `编队详情页` 内打开策略选择底部弹层
   - 点击盟约后只弹出气泡，不进入独立详情页
@@ -236,12 +322,13 @@
   - 干员列表
   - 编队列表
 - 切换主模式时保留各自上下文
-  - 干员页保留搜索、筛选、选中干员
-  - 编队页保留当前编队、选中槽位、备注、策略
+  - 干员页保留搜索、筛选和 `operatorsView`
+  - 编队页保留编队数据和 `formationsView`
 - 移动端切换主模式时：
-  - 不共享 `historyStack`
-  - 不重置另一个主模式的当前屏
-  - 切回时恢复到该主模式上次离开时的导航位置
+  - 不共享各自的 `mobileStack`
+  - 不重置另一个主模式的视图快照
+  - 切回时恢复到该主模式上次离开时的视图快照
+  - 同时关闭当前盟约气泡，并清空当前栈顶上的 `overlay`
 
 ### 7.2 盟约气泡
 
@@ -268,8 +355,12 @@
 - 切换移动端分屏
 - 返回上一屏
 - 视口在 `desktop/mobile` 间切换
+- 任意窗口滚动
+- 任意容器滚动
+- 普通 resize
 - 列表或详情重渲染导致触发项消失
 - 当前编队、当前干员或当前上下文变化导致原气泡目标失效
+- 打开策略选择弹层
 
 ### 7.3 策略展示与重选
 
@@ -280,17 +371,47 @@
 - 在编队详情中常驻展示当前已选策略的信息
 - 点击该区域时，在当前 `编队详情页` 上打开底部策略选择弹层
 - 关闭或选择完成后，仍停留在 `编队详情页`
-- 策略选择弹层不写入独立 `mobileScreen`，而是作为 `formationsNav.strategyPickerOpen` 控制的局部选择态
+- 策略选择弹层不写入独立 route，而是挂在当前 `formationDetail` 栈帧的 `overlay` 字段上
+- `overlay` 只允许在移动端 `formationDetail` 屏打开
+  - 一旦主模式切换、视口切换、返回、或栈顶不再是 `formationDetail`，必须立即清空
+- 返回键优先级高于历史栈：
+  - 如果当前 `formationDetail` 栈帧上的 `overlay` 处于打开状态，先关闭弹层
+  - 只有当没有局部覆盖层打开时，才允许 pop `mobileStack`
 
 ### 7.4 返回逻辑
 
-移动端所有分屏返回必须依赖各自主模式自己的 `historyStack`，而不是靠临时布尔值硬拼。
+移动端所有分屏返回必须依赖各自主模式自己的 `mobileStack`，而不是靠临时布尔值硬拼。
 
 要求：
 
-- 返回后恢复上一屏的上下文
-- 列表状态、滚动位置和选中态尽量保留
+- 返回后恢复上一屏的视图快照
+- 列表状态、滚动位置和选中态必须保留
 - 干员流和编队流的返回栈彼此独立
+- 滚动位置归属：
+  - 滚动位置属于各自的视图快照
+  - 进入新屏前保存当前快照的 `scrollTop`
+  - 返回时恢复被激活快照自己的 `scrollTop`
+- 状态转移优先级：
+  - 先关闭当前栈帧上的 `overlay`
+  - 再 pop `mobileStack`
+  - 最后按规范化规则修正当前工作区的选中对象
+- 根页返回规则：
+  - 当 `mobileStack` 只剩根页且无 overlay 时，前端不拦截
+  - 交给浏览器/系统默认返回行为
+
+### 7.5 最小状态转移表
+
+| 触发事件 | 结果 |
+| --- | --- |
+| 移动端列表进入详情 | 先按目标对象 `push` 新栈帧，再渲染详情 |
+| 移动端返回键，且当前栈帧 `overlay` 打开 | 只关闭当前栈帧 `overlay`，不 pop 栈 |
+| 移动端返回键，且无 overlay | pop 一层 `mobileStack`，恢复上一屏滚动位置 |
+| 移动端返回键，且已在根页 | 前端不拦截，交给浏览器/系统默认行为 |
+| 主模式切换 | 保留两个主模式自己的视图快照，但关闭当前气泡并清空当前栈帧 `overlay` |
+| 视口切换 | 保留桌面/移动各自快照，但关闭当前气泡并清空当前栈帧 `overlay` |
+| 删除当前选中编队，且仍有剩余编队 | 桌面端切到第一项并清空槽位选中；移动端清洗整条栈后回到 `formationList` |
+| 删除当前选中编队，且无剩余编队 | 桌面端清空编队选择；移动端清洗整条栈后重置为仅含 `formationList` 的栈 |
+| 打开策略选择弹层 | 先关闭当前盟约气泡，再把当前 `formationDetail` 栈帧的 `overlay` 设为打开 |
 
 ## 8. 实现边界
 
