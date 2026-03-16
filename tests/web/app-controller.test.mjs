@@ -366,6 +366,22 @@ test('controller opens a bond popover from DOM click and force-closes it on outs
   assert.equal(controller.getState().popoverState.isOpen, false);
 });
 
+test('handleOutsidePointerDown does not mutate state when no bond popover is open', () => {
+  const controller = createAppController({
+    data: createSampleData(),
+    viewportWidth: 1200,
+    savedFormations: createStoredFormations(),
+  });
+  let notifications = 0;
+  controller.subscribe(() => {
+    notifications += 1;
+  });
+
+  controller.handleOutsidePointerDown();
+
+  assert.equal(notifications, 0);
+});
+
 test('mobile detail pages render a back button and strategy overlay renders strategy choices', () => {
   const controller = createAppController({
     data: createSampleData(),

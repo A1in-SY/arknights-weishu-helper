@@ -692,6 +692,10 @@ export function createAppController({ data, viewportWidth = 1200, savedFormation
       this.applyQuery({ [key]: toNullableString(filterField.value) });
     },
     handleOutsidePointerDown() {
+      if (!state.popoverState?.isOpen) {
+        return;
+      }
+
       commit({
         ...state,
         popoverState: closeBondPopover(state.popoverState),
