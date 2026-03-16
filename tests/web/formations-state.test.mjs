@@ -6,6 +6,8 @@ import {
   addOperatorToFormation,
   buildFormationBondSummary,
   createFormationsState,
+  getSelectedFormation,
+  getSelectedFormationEntry,
   removeFormationEntry,
   setFormationStrategy,
   setFormationEntryTransferBond,
@@ -62,13 +64,14 @@ test('createFormationsState starts with one editable formation by default', () =
   assert.equal(state.formations.length, 1);
   assert.equal(state.formations[0].name, '编队 1');
   assert.equal(state.formations[0].strategyId, null);
-  assert.equal(state.selectedFormationId, state.formations[0].formationId);
+  assert.equal('selectedFormationId' in state, false);
+  assert.equal('selectedEntryId' in state, false);
 });
 
 test('formation editing supports add, update, remove, and max size limit', () => {
   const idFactory = createIdFactory();
   let state = createFormationsState({ operators, bonds, strategies, idFactory });
-  const formationId = state.selectedFormationId;
+  const formationId = state.formations[0].formationId;
 
   state = updateFormation(state, formationId, { name: '测试队', notes: '测试备注' });
   assert.equal(state.formations[0].name, '测试队');
@@ -92,7 +95,7 @@ test('formation editing supports add, update, remove, and max size limit', () =>
 test('buildFormationBondSummary deduplicates same char, respects transfer bond, and splits satisfied/unmet bonds', () => {
   const idFactory = createIdFactory();
   let state = createFormationsState({ operators, bonds, strategies, idFactory });
-  const formationId = state.selectedFormationId;
+  const formationId = state.formations[0].formationId;
 
   state = addOperatorToFormation(state, { formationId, operatorKey: 'fixed:char_exusiai', idFactory });
   state = addOperatorToFormation(state, { formationId, operatorKey: 'fixed:char_exusiai', idFactory });
@@ -121,7 +124,7 @@ test('buildFormationBondSummary deduplicates same char, respects transfer bond, 
 test('buildFormationBondSummary marks a full formation as needing personnel document', () => {
   const idFactory = createIdFactory();
   let state = createFormationsState({ operators, bonds, strategies, idFactory });
-  const formationId = state.selectedFormationId;
+  const formationId = state.formations[0].formationId;
 
   for (let index = 0; index < MAX_FORMATION_SIZE; index += 1) {
     state = addOperatorToFormation(state, { formationId, operatorKey: 'fixed:char_exusiai', idFactory });
@@ -145,5 +148,24 @@ test('addFormation appends a new formation and selects it', () => {
 
   assert.equal(state.formations.length, 2);
   assert.equal(state.formations[1].name, '编队 2');
-  assert.equal(state.selectedFormationId, state.formations[1].formationId);
+  assert.equal('selectedFormationId' in state, false);
+  assert.equal('selectedEntryId' in state, false);
+});
+
+test('formation selectors require explicit selected ids instead of reading runtime state', () => {
+  const state = createFormationsState({ operators, bonds, strategies, idFactory: createIdFactory() });
+  const formationId = state.formations[0].formationId;
+  const withEntry = addOperatorToFormation(state, {
+    formationId,
+    operatorKey: 'fixed:char_exusiai',
+    idFactory: createIdFactory(),
+  });
+  const entryId = withEntry.formations[0].entries[0].entryId;
+
+  assert.equal(getSelectedFormation(withEntry), null);
+  assert.equal(
+    getSelectedFormation(withEntry, formationId)?.formationId,
+    formationId,
+  );
+  assert.equal(getSelectedFormationEntry(withEntry, { selectedFormationId: formationId, selectedEntryId: entryId })?.entryId, entryId);
 });

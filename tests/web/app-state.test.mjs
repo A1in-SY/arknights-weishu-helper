@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyQuery, createQueryState } from '../../web/app-state.mjs';
+import { applyQuery, createQueryState, getVisibleOperators } from '../../web/app-state.mjs';
 
 const sampleOperators = [
   {
@@ -217,7 +217,7 @@ test('applyQuery filters by profession, bond, and trimmed name search', () => {
     tierValue: 5,
   });
 
-  assert.deepEqual(next.visibleKeys, ['fixed:char_exusiai']);
+  assert.deepEqual(getVisibleKeys(next), ['fixed:char_exusiai']);
 });
 
 test('applyQuery supports case-insensitive appellation search and subProfession filtering', () => {
@@ -227,27 +227,25 @@ test('applyQuery supports case-insensitive appellation search and subProfession 
     subProfessionCode: 'fastshot',
   });
 
-  assert.deepEqual(next.visibleKeys, ['fixed:char_exusiai']);
+  assert.deepEqual(getVisibleKeys(next), ['fixed:char_exusiai']);
 });
 
-test('selection stays stable when the selected operator still matches', () => {
-  const state = createQueryState(sampleOperators, { selectedOperatorKey: 'fixed:char_exusiai' });
-  const next = applyQuery(state, { searchText: '能天' });
+test('createQueryState keeps only source data, query, and filter options', () => {
+  const state = createQueryState(sampleOperators);
 
-  assert.equal(next.selectedOperatorKey, 'fixed:char_exusiai');
+  assert.deepEqual(Object.keys(state).sort(), ['filterOptions', 'operators', 'query']);
 });
 
 test('filter option order, all-option placement, and empty fallback stay deterministic', () => {
   const state = createQueryState(sampleOperators);
 
-  assert.deepEqual(state.visibleKeys, [
+  assert.deepEqual(getVisibleKeys(state), [
     'fixed:char_nearl',
     'fixed:char_exusiai',
     'fixed:char_harold',
     'fixed:char_ines',
     'diy:char_touch',
   ]);
-  assert.equal(state.selectedOperatorKey, 'fixed:char_nearl');
   assert.deepEqual(state.filterOptions.professions.map((item) => item.label), ['全部', '近卫', '狙击', '先锋', '医疗']);
   assert.deepEqual(state.filterOptions.subProfessions.map((item) => item.label), ['全部', '情报官', '速射手', '无畏者', '行医', '医师']);
   assert.equal(state.filterOptions.tiers[0].label, '全部');
@@ -273,24 +271,23 @@ test('filter option order, all-option placement, and empty fallback stay determi
   );
 
   const next = applyQuery(state, { professionCode: 'MEDIC' });
-  assert.equal(next.selectedOperatorKey, next.visibleKeys[0] ?? null);
+  assert.deepEqual(getVisibleKeys(next), ['fixed:char_harold', 'diy:char_touch']);
 
   const empty = applyQuery(state, { searchText: 'no-match' });
-  assert.deepEqual(empty.visibleKeys, []);
-  assert.equal(empty.selectedOperatorKey, null);
+  assert.deepEqual(getVisibleKeys(empty), []);
 });
 
 test('bond multi-select uses intersection matching and supports clearing', () => {
   const state = createQueryState(sampleOperators);
 
   const combo = applyQuery(state, { bondIds: ['lateranoShip', 'swiftShip'] });
-  assert.deepEqual(combo.visibleKeys, ['fixed:char_exusiai']);
+  assert.deepEqual(getVisibleKeys(combo), ['fixed:char_exusiai']);
 
   const impossible = applyQuery(state, { bondIds: ['lateranoShip', 'raidShip'] });
-  assert.deepEqual(impossible.visibleKeys, []);
+  assert.deepEqual(getVisibleKeys(impossible), []);
 
   const cleared = applyQuery(combo, { bondIds: [] });
-  assert.deepEqual(cleared.visibleKeys, state.visibleKeys);
+  assert.deepEqual(getVisibleKeys(cleared), getVisibleKeys(state));
 });
 
 test('query list sorting uses shop tier desc, rarity desc, then name asc', () => {
@@ -299,7 +296,7 @@ test('query list sorting uses shop tier desc, rarity desc, then name asc', () =>
     sampleOperators[4],
   ]);
 
-  assert.deepEqual(state.visibleKeys, [
+  assert.deepEqual(getVisibleKeys(state), [
     'fixed:char_tier6_high',
     'fixed:char_tier5_ak',
     'fixed:char_tier5_exusiai',
@@ -309,21 +306,23 @@ test('query list sorting uses shop tier desc, rarity desc, then name asc', () =>
 });
 
 test('tier filter can target tierless DIY records without colliding with fixed tiers', () => {
-  const state = createQueryState(sampleOperators, { selectedOperatorKey: 'diy:char_touch' });
+  const state = createQueryState(sampleOperators);
   const next = applyQuery(state, { tierValue: 0 });
 
-  assert.deepEqual(next.visibleKeys, ['diy:char_touch']);
-  assert.equal(next.selectedOperatorKey, 'diy:char_touch');
-  assert.equal(next.selectedOperator?.source.kind, 'diy');
+  assert.deepEqual(getVisibleKeys(next), ['diy:char_touch']);
+  assert.equal(getVisibleOperators(next)[0]?.source.kind, 'diy');
 });
 
 test('garrison trigger timing filter excludes operators without matching traits and removes traitless diy operators', () => {
-  const state = createQueryState(sampleOperators, { selectedOperatorKey: 'diy:char_touch' });
+  const state = createQueryState(sampleOperators);
 
   const onAcquire = applyQuery(state, { garrisonTriggerTiming: '获得时' });
-  assert.deepEqual(onAcquire.visibleKeys, ['fixed:char_harold']);
+  assert.deepEqual(getVisibleKeys(onAcquire), ['fixed:char_harold']);
 
   const passive = applyQuery(state, { garrisonTriggerTiming: '常驻/被动' });
-  assert.deepEqual(passive.visibleKeys, ['fixed:char_nearl', 'fixed:char_exusiai']);
-  assert.equal(passive.visibleKeys.includes('diy:char_touch'), false);
+  assert.deepEqual(getVisibleKeys(passive), ['fixed:char_nearl', 'fixed:char_exusiai']);
+  assert.equal(getVisibleKeys(passive).includes('diy:char_touch'), false);
 });
+function getVisibleKeys(state) {
+  return getVisibleOperators(state).map((item) => item.operatorKey);
+}

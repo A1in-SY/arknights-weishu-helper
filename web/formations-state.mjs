@@ -71,12 +71,11 @@ function updateFormationList(state, formationId, updater) {
   };
 }
 
-export function createFormationsState({ savedState = null, operators = [], bonds = [], strategies = [], idFactory = defaultIdFactory } = {}) {
+export function createFormationsState({ formations: sourceFormations = [], operators = [], bonds = [], strategies = [], idFactory = defaultIdFactory } = {}) {
   const operatorLookup = asOperatorLookup(operators);
   const bondLookup = asBondLookup(bonds);
   const strategyLookup = asStrategyLookup(strategies);
-  const savedFormations = Array.isArray(savedState?.formations) ? savedState.formations : [];
-  const formations = savedFormations
+  const formations = (Array.isArray(sourceFormations) ? sourceFormations : [])
     .map((formation, index) => normalizeFormation(formation, index, operatorLookup, bondLookup, strategyLookup, idFactory))
     .filter(Boolean);
 
@@ -84,27 +83,8 @@ export function createFormationsState({ savedState = null, operators = [], bonds
     formations.push(createFormationRecord(1, idFactory));
   }
 
-  const selectedFormationId = formations.some((formation) => formation.formationId === savedState?.selectedFormationId)
-    ? savedState.selectedFormationId
-    : formations[0]?.formationId ?? null;
-
-  const selectedFormation = formations.find((formation) => formation.formationId === selectedFormationId) ?? null;
-  const selectedEntryId = selectedFormation?.entries.some((entry) => entry.entryId === savedState?.selectedEntryId)
-    ? savedState.selectedEntryId
-    : selectedFormation?.entries[0]?.entryId ?? null;
-
   return {
     formations,
-    selectedFormationId,
-    selectedEntryId,
-  };
-}
-
-export function serializeFormationsState(state) {
-  return {
-    formations: state.formations,
-    selectedFormationId: state.selectedFormationId,
-    selectedEntryId: state.selectedEntryId,
   };
 }
 
@@ -114,8 +94,6 @@ export function addFormation(state, { idFactory = defaultIdFactory } = {}) {
   return {
     ...state,
     formations: [...state.formations, nextFormation],
-    selectedFormationId: nextFormation.formationId,
-    selectedEntryId: null,
   };
 }
 
@@ -134,29 +112,12 @@ export function setFormationStrategy(state, { formationId, strategyId } = {}) {
   }));
 }
 
-export function selectFormation(state, formationId) {
-  const formation = state.formations.find((item) => item.formationId === formationId);
-
-  if (!formation) {
-    return state;
-  }
-
-  return {
-    ...state,
-    selectedFormationId: formationId,
-    selectedEntryId: formation.entries[0]?.entryId ?? null,
-  };
-}
-
 export function deleteFormation(state, formationId) {
   const formations = state.formations.filter((formation) => formation.formationId !== formationId);
-  const selectedFormation = formations[0] ?? null;
 
   return {
     ...state,
     formations,
-    selectedFormationId: selectedFormation?.formationId ?? null,
-    selectedEntryId: selectedFormation?.entries[0]?.entryId ?? null,
   };
 }
 
@@ -189,22 +150,6 @@ export function addOperatorToFormation(state, { formationId, operatorKey, idFact
 
   return {
     ...nextState,
-    selectedFormationId: formationId,
-    selectedEntryId: addedEntryId,
-  };
-}
-
-export function selectFormationEntry(state, { formationId, entryId } = {}) {
-  const formation = state.formations.find((item) => item.formationId === formationId);
-
-  if (!formation?.entries.some((entry) => entry.entryId === entryId)) {
-    return state;
-  }
-
-  return {
-    ...state,
-    selectedFormationId: formationId,
-    selectedEntryId: entryId,
   };
 }
 
@@ -214,18 +159,7 @@ export function removeFormationEntry(state, { formationId, entryId } = {}) {
     entries: formation.entries.filter((entry) => entry.entryId !== entryId),
   }));
 
-  const activeFormation = nextState.formations.find((formation) => formation.formationId === formationId);
-
-  if (!activeFormation) {
-    return nextState;
-  }
-
-  return {
-    ...nextState,
-    selectedEntryId: activeFormation.entries.some((entry) => entry.entryId === nextState.selectedEntryId)
-      ? nextState.selectedEntryId
-      : activeFormation.entries[0]?.entryId ?? null,
-  };
+  return nextState;
 }
 
 export function setFormationEntryTransferBond(state, { formationId, entryId, transferredBondId } = {}) {
@@ -239,13 +173,13 @@ export function setFormationEntryTransferBond(state, { formationId, entryId, tra
   }));
 }
 
-export function getSelectedFormation(state) {
-  return state.formations.find((formation) => formation.formationId === state.selectedFormationId) ?? null;
+export function getSelectedFormation(state, selectedFormationId) {
+  return state.formations.find((formation) => formation.formationId === selectedFormationId) ?? null;
 }
 
-export function getSelectedFormationEntry(state) {
-  const formation = getSelectedFormation(state);
-  return formation?.entries.find((entry) => entry.entryId === state.selectedEntryId) ?? null;
+export function getSelectedFormationEntry(state, { selectedFormationId, selectedEntryId }) {
+  const formation = getSelectedFormation(state, selectedFormationId);
+  return formation?.entries.find((entry) => entry.entryId === selectedEntryId) ?? null;
 }
 
 export function buildFormationBondSummary({ formation, operators, bonds }) {
