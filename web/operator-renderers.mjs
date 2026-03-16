@@ -114,7 +114,6 @@ export function renderOperatorDetailMarkup(view) {
         ` : view.bondRows.map((bond) => `
           <button type="button" class="bond-chip" data-bond-id="${escapeHtml(bond.bondId)}">
             <span>${escapeHtml(bond.name)}</span>
-            <span>${escapeHtml(bond.category.label)}</span>
           </button>
         `).join('')}
       </div>

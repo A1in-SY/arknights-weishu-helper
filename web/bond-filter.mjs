@@ -26,7 +26,7 @@ function renderBondSummary(bondGroups, selectedBondIds) {
 
 export function renderBondFilterMarkup(filterOptions, query, uiState) {
   return `
-    <div class="filter-field bond-filter-shell">
+    <div class="filter-field bond-filter-shell" data-bond-filter-shell>
       <span class="filter-field-label">盟约筛选</span>
       <button class="bond-trigger" type="button" data-bond-panel-toggle aria-expanded="${uiState.bondPanelOpen ? 'true' : 'false'}">
         <strong>${escapeHtml(renderBondSummary(filterOptions.bondGroups, query.bondIds))}</strong>

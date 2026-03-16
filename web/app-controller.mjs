@@ -108,6 +108,38 @@ function normalizeAppState(state) {
   };
 }
 
+function createUiState(patch = {}) {
+  return {
+    bondPanelOpen: Boolean(patch.bondPanelOpen),
+  };
+}
+
+function toggleBondPanel(uiState) {
+  return {
+    ...uiState,
+    bondPanelOpen: !uiState.bondPanelOpen,
+  };
+}
+
+function closeBondPanel(uiState) {
+  if (!uiState.bondPanelOpen) {
+    return uiState;
+  }
+
+  return {
+    ...uiState,
+    bondPanelOpen: false,
+  };
+}
+
+function setBondIds(queryState, bondId, checked) {
+  const nextBondIds = checked
+    ? [...new Set([...queryState.query.bondIds, bondId])]
+    : queryState.query.bondIds.filter((item) => item !== bondId);
+
+  return applyQuery(queryState, { bondIds: nextBondIds });
+}
+
 function closeMobileFormationOverlay(viewState) {
   const stack = viewState.formationsView.mobileStack;
   const topFrame = stack.at(-1);
@@ -158,7 +190,7 @@ function renderOperatorsPage(state, viewport) {
   const filterMarkup = renderOperatorFiltersMarkup({
     filterOptions: state.queryState.filterOptions,
     query: state.queryState.query,
-    uiState: {},
+    uiState: state.uiState,
   });
   const resultsMarkup = renderOperatorResultsMarkup(view);
   const detailMarkup = renderOperatorDetailMarkup(view);
@@ -317,6 +349,7 @@ function createInitialState({ data, viewportWidth = 1200, savedFormations = null
       strategies: data.strategies,
     }),
     popoverState: createPopoverState(),
+    uiState: createUiState(),
     viewState: createViewState(hydrated.viewStatePatch ?? {}),
     viewportWidth,
   });
@@ -345,6 +378,7 @@ export function createAppController({ data, viewportWidth = 1200, savedFormation
       commit({
         ...state,
         popoverState: closeBondPopover(state.popoverState),
+        uiState: closeBondPanel(state.uiState),
         viewState: {
           ...closeMobileFormationOverlay(state.viewState),
           mode: mode === 'formations' ? 'formations' : 'operators',
@@ -361,6 +395,7 @@ export function createAppController({ data, viewportWidth = 1200, savedFormation
       commit({
         ...state,
         popoverState: closeBondPopover(state.popoverState),
+        uiState: closeBondPanel(state.uiState),
         viewportWidth: nextWidth,
         viewState: closeMobileFormationOverlay(nextViewState),
       });
@@ -553,6 +588,24 @@ export function createAppController({ data, viewportWidth = 1200, savedFormation
         return;
       }
 
+      const bondPanelToggleButton = eventTargetClosest(event, '[data-bond-panel-toggle]');
+      if (bondPanelToggleButton) {
+        commit({
+          ...state,
+          uiState: toggleBondPanel(state.uiState),
+        });
+        return;
+      }
+
+      const clearBondsButton = eventTargetClosest(event, '[data-clear-bonds]');
+      if (clearBondsButton) {
+        commit({
+          ...state,
+          queryState: applyQuery(state.queryState, { bondIds: [] }),
+        });
+        return;
+      }
+
       const addSelectedOperatorButton = eventTargetClosest(event, '[data-add-selected-operator]');
       if (addSelectedOperatorButton) {
         this.addSelectedOperatorToActiveFormation();
@@ -674,6 +727,15 @@ export function createAppController({ data, viewportWidth = 1200, savedFormation
       }
 
       const filterField = eventTargetClosest(event, '[data-filter]');
+      const bondField = eventTargetClosest(event, '[data-bond-id]');
+      if (bondField) {
+        commit({
+          ...state,
+          queryState: setBondIds(state.queryState, bondField.dataset.bondId, Boolean(bondField.checked)),
+        });
+        return;
+      }
+
       if (!filterField) {
         return;
       }
@@ -691,14 +753,18 @@ export function createAppController({ data, viewportWidth = 1200, savedFormation
 
       this.applyQuery({ [key]: toNullableString(filterField.value) });
     },
-    handleOutsidePointerDown() {
-      if (!state.popoverState?.isOpen) {
+    handleOutsidePointerDown(event) {
+      const clickedInsideBondFilter = Boolean(eventTargetClosest(event, '[data-bond-filter-shell]'));
+      const shouldCloseBondPanelNow = state.uiState.bondPanelOpen && !clickedInsideBondFilter;
+
+      if (!state.popoverState?.isOpen && !shouldCloseBondPanelNow) {
         return;
       }
 
       commit({
         ...state,
         popoverState: closeBondPopover(state.popoverState),
+        uiState: shouldCloseBondPanelNow ? closeBondPanel(state.uiState) : state.uiState,
       });
     },
     handleBack() {

@@ -336,6 +336,47 @@ test('controller routes DOM click, input, and change events into the active work
   assert.equal(mobile.getState().viewState.formationsView.mobileStack.at(-1).screen, 'formationDetail');
 });
 
+test('desktop bond filter opens, applies bond ids, clears them, and closes on outside pointerdown', () => {
+  const controller = createAppController({
+    data: createSampleData(),
+    viewportWidth: 1200,
+    savedFormations: createStoredFormations(),
+  });
+
+  controller.handleClick({
+    target: createClosestTarget({
+      '[data-bond-panel-toggle]': { dataset: {} },
+    }),
+  });
+
+  assert.match(controller.render(), /bond-panel is-open/);
+
+  controller.handleChange({
+    target: createClosestTarget({
+      '[data-bond-id]': { dataset: { bondId: 'lateranoShip' }, checked: true },
+    }),
+  });
+
+  assert.deepEqual(controller.getState().queryState.query.bondIds, ['lateranoShip']);
+
+  controller.handleClick({
+    target: createClosestTarget({
+      '[data-clear-bonds]': { dataset: {} },
+    }),
+  });
+
+  assert.deepEqual(controller.getState().queryState.query.bondIds, []);
+  assert.match(controller.render(), /bond-panel is-open/);
+
+  controller.handleOutsidePointerDown({
+    target: createClosestTarget({
+      '[data-bond-filter-shell]': null,
+    }),
+  });
+
+  assert.doesNotMatch(controller.render(), /bond-panel is-open/);
+});
+
 test('controller opens a bond popover from DOM click and force-closes it on outside pointerdown', () => {
   const controller = createAppController({
     data: createSampleData(),
