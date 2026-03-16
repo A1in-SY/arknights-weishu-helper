@@ -1,0 +1,11 @@
+{
+  "name": "arknights-weishu-helper",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "export:act2autochess": "node scripts/export-act2autochess-operators.mjs",
+    "sync:prts-assets": "node scripts/sync-prts-assets.mjs",
+    "serve": "node scripts/serve-static.mjs"
+  }
+}

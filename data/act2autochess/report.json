@@ -1,0 +1,29 @@
+{
+  "activityId": "act2autochess",
+  "bondCount": 23,
+  "strategyCount": 36,
+  "fixedOperatorCount": 116,
+  "diyCandidateCharCount": 81,
+  "diyOperatorCount": 81,
+  "exportedCount": 197,
+  "diySlotChessIds": [
+    "chess_char_5_diy1_a",
+    "chess_char_5_diy2_a",
+    "chess_char_6_diy1_a",
+    "chess_char_6_diy2_a"
+  ],
+  "missingCharIdMappings": [],
+  "missingBondMappings": [],
+  "missingGarrisonMappings": [],
+  "duplicateChessIds": [],
+  "multiGarrisonChessIds": [
+    "chess_char_2_05_a",
+    "chess_char_2_12_a",
+    "chess_char_3_17_a",
+    "chess_char_5_01_a",
+    "chess_char_5_21_a",
+    "chess_char_6_07_a",
+    "chess_char_6_12_a",
+    "chess_char_6_17_a"
+  ]
+}
