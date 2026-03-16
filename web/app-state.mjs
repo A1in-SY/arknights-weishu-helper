@@ -42,14 +42,6 @@ function matchesFilters(operator, query) {
   );
 }
 
-function pickSelectedOperatorKey(previousSelectedOperatorKey, visibleOperators) {
-  if (previousSelectedOperatorKey && visibleOperators.some((item) => item.operatorKey === previousSelectedOperatorKey)) {
-    return previousSelectedOperatorKey;
-  }
-
-  return visibleOperators[0]?.operatorKey ?? null;
-}
-
 function distinctSorted(items, getValue, getLabel, type = 'label') {
   const seen = new Map();
 
@@ -122,13 +114,8 @@ function buildFilterOptions(operators) {
   };
 }
 
-function getSelectedOperator(operators, selectedOperatorKey) {
-  return operators.find((item) => item.operatorKey === selectedOperatorKey) ?? null;
-}
-
-export function createQueryState(operators, options = {}) {
-  const sortedOperators = [...operators].sort(compareOperators);
-  const query = {
+function createEmptyQuery() {
+  return {
     searchText: '',
     professionCode: null,
     subProfessionCode: null,
@@ -136,17 +123,15 @@ export function createQueryState(operators, options = {}) {
     garrisonTriggerTiming: null,
     bondIds: [],
   };
-  const visibleOperators = sortedOperators;
-  const selectedOperatorKey = pickSelectedOperatorKey(options.selectedOperatorKey ?? null, visibleOperators);
+}
+
+export function createQueryState(operators) {
+  const sortedOperators = [...operators].sort(compareOperators);
 
   return {
     operators: sortedOperators,
-    query,
+    query: createEmptyQuery(),
     filterOptions: buildFilterOptions(sortedOperators),
-    visibleOperators,
-    visibleKeys: visibleOperators.map((item) => item.operatorKey),
-    selectedOperatorKey,
-    selectedOperator: getSelectedOperator(sortedOperators, selectedOperatorKey),
   };
 }
 
@@ -160,19 +145,15 @@ export function applyQuery(state, nextQuery) {
       : [...state.query.bondIds],
   };
 
-  const visibleOperators = state.operators
-    .filter((operator) => matchesSearch(operator, query.searchText))
-    .filter((operator) => matchesFilters(operator, query))
-    .sort(compareOperators);
-
-  const selectedOperatorKey = pickSelectedOperatorKey(state.selectedOperatorKey, visibleOperators);
-
   return {
     ...state,
     query,
-    visibleOperators,
-    visibleKeys: visibleOperators.map((item) => item.operatorKey),
-    selectedOperatorKey,
-    selectedOperator: getSelectedOperator(visibleOperators, selectedOperatorKey),
   };
+}
+
+export function getVisibleOperators(state) {
+  return state.operators
+    .filter((operator) => matchesSearch(operator, state.query.searchText))
+    .filter((operator) => matchesFilters(operator, state.query))
+    .sort(compareOperators);
 }

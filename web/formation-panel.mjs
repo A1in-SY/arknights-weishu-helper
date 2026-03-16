@@ -188,8 +188,11 @@ export function renderFormationPanelMarkup({ formationsState, operators, bonds, 
   const orderedBonds = bonds instanceof Map ? [...bonds.values()] : [...(bonds ?? [])];
   const orderedStrategies = strategies instanceof Map ? [...strategies.values()] : [...(strategies ?? [])];
   const strategyLookup = asStrategyLookup(orderedStrategies);
-  const activeFormation = getSelectedFormation(formationsState);
-  const selectedEntry = getSelectedFormationEntry(formationsState);
+  const activeFormation = getSelectedFormation(formationsState, formationsState.selectedFormationId);
+  const selectedEntry = getSelectedFormationEntry(formationsState, {
+    selectedFormationId: formationsState.selectedFormationId,
+    selectedEntryId: formationsState.selectedEntryId,
+  });
   const selectedEntryOperator = selectedEntry ? operatorLookup.get(selectedEntry.operatorKey) : null;
 
   if (!activeFormation) {

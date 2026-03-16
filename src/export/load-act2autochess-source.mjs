@@ -1,22 +1,33 @@
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import { readJsonFile } from './read-json-file.mjs';
 
-const DEFAULT_ACTIVITY_TABLE_PATH = fileURLToPath(
-  new URL('../../../ArknightsGameData/zh_CN/gamedata/excel/activity_table.json', import.meta.url),
-);
-const DEFAULT_CHARACTER_TABLE_PATH = fileURLToPath(
-  new URL('../../../ArknightsGameData/zh_CN/gamedata/excel/character_table.json', import.meta.url),
-);
 const DEFAULT_DISPLAY_MAPPINGS_PATH = fileURLToPath(
   new URL('../../config/display-mappings.json', import.meta.url),
 );
 const DEFAULT_DIY_BOND_MAPPINGS_PATH = fileURLToPath(
   new URL('../../config/diy-bond-mappings.json', import.meta.url),
 );
-const DEFAULT_SKIN_TABLE_PATH = fileURLToPath(
-  new URL('../../../ArknightsGameData/zh_CN/gamedata/excel/skin_table.json', import.meta.url),
-);
+
+function resolveRepositoryRoot() {
+  const sourceDir = dirname(fileURLToPath(import.meta.url));
+  const worktreeMarker = `${sep}.worktrees${sep}`;
+  const markerIndex = sourceDir.indexOf(worktreeMarker);
+
+  if (markerIndex >= 0) {
+    return sourceDir.slice(0, markerIndex);
+  }
+
+  return resolve(sourceDir, '../..');
+}
+
+function resolveGameDataPath(filename) {
+  return resolve(resolveRepositoryRoot(), '..', 'ArknightsGameData', 'zh_CN', 'gamedata', 'excel', filename);
+}
+
+const DEFAULT_ACTIVITY_TABLE_PATH = resolveGameDataPath('activity_table.json');
+const DEFAULT_CHARACTER_TABLE_PATH = resolveGameDataPath('character_table.json');
+const DEFAULT_SKIN_TABLE_PATH = resolveGameDataPath('skin_table.json');
 
 export async function loadAct2autochessSource(paths = {}) {
   const activityTablePath = resolve(paths.activityTablePath ?? DEFAULT_ACTIVITY_TABLE_PATH);
