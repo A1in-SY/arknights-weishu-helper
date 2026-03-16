@@ -111,6 +111,8 @@ textarea {
 
 .desktop-operator-page,
 .desktop-formation-page {
+  height: calc(100vh - 188px);
+  max-height: calc(100vh - 188px);
   min-height: calc(100vh - 188px);
   display: grid;
   gap: 16px;
@@ -609,6 +611,13 @@ textarea {
   gap: 8px;
 }
 
+.operator-bond-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
 .formation-bond-chip {
   display: inline-flex;
   align-items: center;
@@ -621,13 +630,14 @@ textarea {
 .bond-chip {
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
   border-radius: 999px;
   padding: 8px 12px;
   background: var(--chip-bg);
   border-color: var(--chip-border);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .bond-chip:hover,

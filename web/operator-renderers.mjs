@@ -108,7 +108,7 @@ export function renderOperatorDetailMarkup(view) {
     </section>
     <section class="detail-block">
       <h3>盟约</h3>
-      <div class="stack">
+      <div class="operator-bond-list">
         ${view.bondRows.length === 0 ? `
           <div class="empty">${view.detailSummary.sourceKind === 'diy' ? 'DIY 干员无固定盟约信息。' : '无盟约信息。'}</div>
         ` : view.bondRows.map((bond) => `
